@@ -4,22 +4,28 @@
 
 const API_TIMEOUT_MS = 30000;
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || ''
+).replace(/\/$/, '');
+
 export async function checkBackendHealth() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
 
   try {
-    const response = await fetch('/api/health', {
+    const response = await fetch(`${API_BASE_URL}/api/health`, {
       signal: controller.signal,
     });
-    clearTimeout(timer);
+
     if (!response.ok) {
       throw new Error(`Health check failed with status ${response.status}`);
     }
+
     return await response.json();
   } catch (err) {
-    clearTimeout(timer);
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -28,7 +34,7 @@ export async function sendChatMessage(messages) {
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   try {
-    const response = await fetch('/api/chat', {
+    const response = await fetch(`${API_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -37,19 +43,19 @@ export async function sendChatMessage(messages) {
       signal: controller.signal,
     });
 
-    clearTimeout(timer);
-
     if (!response.ok) {
       let errorDetail = 'Failed to communicate with ResearchPilot.';
+
       try {
         const errorJson = await response.json();
+
         if (errorJson.detail) {
           errorDetail = errorJson.detail;
         }
       } catch {
-        // Fallback to HTTP status text
         errorDetail = `Server responded with status ${response.status}: ${response.statusText}`;
       }
+
       const error = new Error(errorDetail);
       error.status = response.status;
       throw error;
@@ -57,13 +63,17 @@ export async function sendChatMessage(messages) {
 
     return await response.json();
   } catch (err) {
-    clearTimeout(timer);
     if (err.name === 'AbortError') {
-      const timeoutError = new Error('Request timed out. Please check your connection and try again.');
+      const timeoutError = new Error(
+        'Request timed out. Please check your connection and try again.'
+      );
       timeoutError.status = 504;
       throw timeoutError;
     }
+
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -72,7 +82,7 @@ export async function generateResearchPlan(messages) {
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   try {
-    const response = await fetch('/api/plan/generate', {
+    const response = await fetch(`${API_BASE_URL}/api/plan/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -83,8 +93,10 @@ export async function generateResearchPlan(messages) {
 
     if (!response.ok) {
       let errorDetail = 'Failed to generate research plan.';
+
       try {
         const errorJson = await response.json();
+
         if (errorJson.detail) {
           errorDetail = errorJson.detail;
         }
@@ -92,9 +104,10 @@ export async function generateResearchPlan(messages) {
         if (parseErr?.name === 'AbortError') {
           throw parseErr;
         }
-        // Fallback to HTTP status text
+
         errorDetail = `Server responded with status ${response.status}: ${response.statusText}`;
       }
+
       const error = new Error(errorDetail);
       error.status = response.status;
       throw error;
@@ -103,10 +116,13 @@ export async function generateResearchPlan(messages) {
     return await response.json();
   } catch (err) {
     if (err.name === 'AbortError') {
-      const timeoutError = new Error('Plan generation timed out. Please check your connection and try again.');
+      const timeoutError = new Error(
+        'Plan generation timed out. Please check your connection and try again.'
+      );
       timeoutError.status = 504;
       throw timeoutError;
     }
+
     throw err;
   } finally {
     clearTimeout(timer);
